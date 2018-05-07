@@ -142,7 +142,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         //sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
         //sensorManager.registerListener(this, head, SensorManager.SENSOR_DELAY_GAME);
         //sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_NORMAL);
-        sensorManager.registerListener(this, rotv, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(this, rotv, SensorManager.SENSOR_DELAY_FASTEST);
 
 
 
@@ -332,8 +332,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     class SayHello extends TimerTask {
         public void run() {
-            lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-            location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            //lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            //location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
             //lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 100, 0, locationListener );
             //longitude = location.getLongitude();
             //latitude = location.getLatitude();
@@ -462,7 +462,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         */
     }
     String[] options = {"1080p","720p","480p"};
-    String[] options1 = {"15 Hz","10 Hz"};
+    String[] options1 = {"15 Hz","10 Hz","100 Hz"};
     String[] options2 = {"10 fps","20 fps","30 fps"};
 
 
@@ -506,6 +506,9 @@ public class MainActivity extends Activity implements SensorEventListener {
         else if(rate == 67){
             setting = "15 Hz";
         }
+        else if (rate == 10) {
+            setting = "100 Hz";
+        }
         builder.setTitle("Pick Data Save Rate, Current setting: " + setting)
                 .setItems(options1, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
@@ -516,6 +519,9 @@ public class MainActivity extends Activity implements SensorEventListener {
                         }
                         else if (which == 1){
                             rate = 100;
+                        }
+                        else if (which  == 2) {
+                            rate = 10;
                         }
                     }
                 });
