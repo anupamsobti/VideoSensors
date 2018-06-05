@@ -3,6 +3,8 @@ package com.example.juju.e_labvideoapp;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -11,8 +13,12 @@ import java.util.Date;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
@@ -24,6 +30,7 @@ import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.SystemClock;
 import android.telephony.TelephonyManager;
 import android.view.View;
@@ -51,8 +58,11 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import java.util.Locale;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class MainActivity extends Activity implements SensorEventListener {
     private Camera mCamera;
@@ -72,8 +82,18 @@ public class MainActivity extends Activity implements SensorEventListener {
     Timer timer;
     int VideoFrameRate = 24;
 
+    private final String DEVICE_ADDRESS = "00:18:E4:34:F1:F2";
+    private final UUID PORT_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");//Serial Port Service ID
+    private BluetoothSocket socket;
+    private OutputStream outputStream;
+    private InputStream inputStream;
+    byte buffer[];
+    boolean stopThread = false;
+    private ReentrantLock lock = new ReentrantLock();
+
     LocationListener locationListener;
     LocationManager LM;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -99,16 +119,154 @@ public class MainActivity extends Activity implements SensorEventListener {
         txt.setTextColor(-16711936);
 
         vid = (ImageButton) findViewById(R.id.imageButton);
-        vid.setVisibility(View.GONE);
+        //vid.setVisibility(View.GONE);
+
+        tv = (TextView) findViewById(R.id.textViewHeading);
 
         /*
-        tv = (TextView) findViewById(R.id.textViewHeading);
+
         String setTextText = "Heading: " + heading + " Speed: " + speed;
         tv.setText(setTextText);
         */
 
 
     }
+
+    public BluetoothDevice findDevice(BluetoothAdapter bluetoothAdapter) {
+
+        BluetoothDevice device = null;
+
+        if (bluetoothAdapter == null) {
+            Toast.makeText(getApplicationContext(), "Device doesnt Support Bluetooth", Toast.LENGTH_SHORT).show();
+        }
+
+        if (!bluetoothAdapter.isEnabled()) {
+            Intent enableAdapter = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableAdapter, 0);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        Set<BluetoothDevice> bondedDevices = bluetoothAdapter.getBondedDevices();
+        if (bondedDevices.isEmpty()) {
+            Toast.makeText(getApplicationContext(), "Please Pair the Device first", Toast.LENGTH_SHORT).show();
+        } else {
+            for (BluetoothDevice iterator : bondedDevices) {
+                if (iterator.getAddress().equals(DEVICE_ADDRESS)) {
+                    device = iterator;
+                    break;
+                }
+            }
+        }
+        return device;
+    }
+
+    public boolean BTconnect(BluetoothDevice device)
+    {
+        boolean connected=true;
+
+        try {
+            socket = device.createRfcommSocketToServiceRecord(PORT_UUID);
+            socket.connect();
+        } catch (IOException e) {
+            e.printStackTrace();
+            connected=false;
+        }
+        if(connected)
+        {
+            try {
+                outputStream=socket.getOutputStream();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            try {
+                inputStream=socket.getInputStream();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        }
+
+
+        return connected;
+    }
+
+    void beginListenForData()
+    {
+        final Handler handler = new Handler();
+        stopThread = false;
+        buffer = new byte[1024];
+        Thread thread  = new Thread(new Runnable()
+        {
+            public void run()
+            {
+                while(!Thread.currentThread().isInterrupted() && !stopThread)
+                {
+                    try
+                    {
+                        //SystemClock.sleep(50);
+                        int byteCount = inputStream.available();
+                        if(byteCount > 10)
+                        {
+                            byte[] rawBytes = new byte[byteCount];
+                            inputStream.read(rawBytes);
+                            final String string=new String(rawBytes,"UTF-8");
+                            handler.post(new Runnable() {
+                                public void run()
+                                {
+                                    lock.lock();
+                                    try {
+                                        bluetoothSensorData = string;
+                                    } finally {
+                                        lock.unlock();
+                                    }
+
+                                    tv.setText("Received : " + bluetoothSensorData );
+                                }
+                            });
+
+                        }
+                    }
+                    catch (IOException ex)
+                    {
+                        stopThread = true;
+                    }
+                }
+            }
+        });
+
+        thread.start();
+    }
+
+    public void bluetoothInit(View view) {
+        Toast toast = Toast.makeText(this, "Bluetooth Initializing..", Toast.LENGTH_LONG);
+        toast.show();
+        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        BluetoothDevice device = null;
+        boolean found = false;
+
+        if (!found) {
+            device = findDevice(bluetoothAdapter);
+            if (device != null) {
+                found = true;
+            }
+            tv.setText("Found device in paired devices list");
+        }
+
+        if (found) {
+            tv.setText("Connecting.. In process.");
+            if (BTconnect(device)) {
+                toast = Toast.makeText(this, "Connected to device.", Toast.LENGTH_LONG);
+                toast.show();
+                tv.setText("Connected to BT Device.");
+                beginListenForData();
+            }
+        }
+    }
+
 
 
     private int findBackFacingCamera() {
@@ -324,6 +482,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     double latitude_original = 0;
     double longitude_original = 0;
+
+
     //float distance = 0;
     float speed = 0;
     float dist[] = {0,0,0};
@@ -355,9 +515,18 @@ public class MainActivity extends Activity implements SensorEventListener {
                     heading + "," + gyro_x + "," + gyro_y + "," + gyro_z);
             */
             String timeStamp = String.valueOf((new Date()).getTime());
+            String acquiredSensorData = "";
+
+            lock.lock();
+            try {
+                acquiredSensorData = bluetoothSensorData;
+            } finally {
+                lock.unlock();
+            }
+
             writer.println(timeStamp + "," +
                            longitude_original + "," + latitude_original + "," +
-                           rotv_x + "," + rotv_y + "," + rotv_z + "," + rotv_w + "," + rotv_accuracy);
+                           rotv_x + "," + rotv_y + "," + rotv_z + "," + rotv_w + "," + rotv_accuracy + "," + acquiredSensorData );
         }
     }
 
@@ -374,7 +543,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         //        + "," + "gyro_x" + "," + "gyro_y" + "," + "gyro_z");
         writer.println("Timestamp" + "," +
                        "Longitude" + "," + "Latitude" + "," +
-                       "RotationV X" + "," + "RotationV Y" + "," + "RotationV Z" + "," + "RotationV W" + "," + "RotationV Acc");
+                       "RotationV X" + "," + "RotationV Y" + "," + "RotationV Z" + "," + "RotationV W" + "," + "RotationV Acc" + "," + "Bluetooth Sensor Data" );
         LocationManager original = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         Location original_location = original.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         if(original.getLastKnownLocation(LocationManager.GPS_PROVIDER) != null){
@@ -422,6 +591,8 @@ public class MainActivity extends Activity implements SensorEventListener {
     float rotv_z = 0;
     float rotv_w = 0;
     float rotv_accuracy = 0;
+
+    String bluetoothSensorData = "";
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
