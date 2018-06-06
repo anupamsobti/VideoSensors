@@ -33,6 +33,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.WindowManager;
@@ -207,12 +208,14 @@ public class MainActivity extends Activity implements SensorEventListener {
                 {
                     try
                     {
-                        //SystemClock.sleep(50);
-                        int byteCount = inputStream.available();
-                        if(byteCount > 10)
+                        SystemClock.sleep(50);
+                        //int byteCount = inputStream.available();
+                        int byteCount = 14;
+                        if(inputStream.available() > 14)
                         {
                             byte[] rawBytes = new byte[byteCount];
-                            inputStream.read(rawBytes);
+                            //inputStream.read(rawBytes);
+                            inputStream.read(rawBytes,0,14);
                             final String string=new String(rawBytes,"UTF-8");
                             handler.post(new Runnable() {
                                 public void run()
