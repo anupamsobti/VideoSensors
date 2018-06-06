@@ -211,10 +211,13 @@ public class MainActivity extends Activity implements SensorEventListener {
                         SystemClock.sleep(50);
                         //int byteCount = inputStream.available();
                         int byteCount = 14;
-                        if(inputStream.available() > 14)
+                        String handshake = "s";
+                        outputStream.write(handshake.getBytes());
+                        if(inputStream.available() > 13)
                         {
                             byte[] rawBytes = new byte[byteCount];
                             //inputStream.read(rawBytes);
+
                             inputStream.read(rawBytes,0,14);
                             final String string=new String(rawBytes,"UTF-8");
                             handler.post(new Runnable() {
